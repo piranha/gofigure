@@ -6,6 +6,6 @@ GOFILES=gofigure.go
 compile: all
 
 run: all
-	./$(TARG)
+	./$(TARG) http://localhost:8080
 
 include $(GOROOT)/src/Make.cmd

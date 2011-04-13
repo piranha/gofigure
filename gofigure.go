@@ -13,7 +13,7 @@ import (
 	)
 
 var reqs *int = flag.Int("n", 1, "number of requests to make")
-var concur *int = flag.Int("c", 1, "concurrency")
+var concurrency *int = flag.Int("c", 1, "concurrency")
 
 type someError struct {
 	what string
@@ -48,16 +48,25 @@ func main() {
 		return
 	}
 
-	now := time.Nanoseconds()
 	ch := make(chan result, *reqs)
 	results := make([]result, *reqs)
+	running, i, j := 0, 0, 0
 
-	for i := 0; i < *reqs; i++ {
-		go send(url, ch)
-	}
+	now := time.Nanoseconds()
+	for {
+		if running < *concurrency && i < *reqs {
+			go send(url, ch)
+			running++
+			i++
+		} else if j < *reqs {
+			results[j] = <- ch
+			j++
+			running--
+		}
 
-	for i := 0; i < *reqs; i++ {
-		results[i] = <- ch
+		if i == j && j >= *reqs {
+			break
+		}
 	}
 
 	printStats(results, time.Nanoseconds() - now)
@@ -75,7 +84,6 @@ func printStats(results []result, workTime int64) {
 	}
 	sort.Sort(times)
 
-
 	fmt.Printf(`Statistics for request to %s
 
 Time taken for tests:           %.3f ms
@@ -87,7 +95,7 @@ Total failures:                 %d
 		flag.Arg(0),
 		ms(workTime),
 		ms(total / int64(len(times))),
-		ms((times[len(times) / 2] + times[len(times) / 2 + 1]) / 2),
+		ms(times[len(times) / 2]),
 		ms(workTime / int64(*reqs)),
 		*reqs - len(times))
 }

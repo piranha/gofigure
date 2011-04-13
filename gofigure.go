@@ -48,9 +48,12 @@ func main() {
 		return
 	}
 
+	fmt.Printf("Statistics for requests to %s\n", flag.Arg(0))
+
 	ch := make(chan result, *reqs)
 	results := make([]result, *reqs)
 	running, i, j := 0, 0, 0
+	hadProgress := false
 
 	now := time.Nanoseconds()
 	for {
@@ -62,11 +65,20 @@ func main() {
 			results[j] = <- ch
 			j++
 			running--
+
+			if j > 0 && j % 100 == 0 {
+				fmt.Printf("\rCompleted %d from %d requests", j, *reqs)
+				hadProgress = true
+			}
 		}
 
 		if i == j && j >= *reqs {
 			break
 		}
+	}
+
+	if hadProgress {
+		fmt.Print("\r                                  ")
 	}
 
 	printStats(results, time.Nanoseconds() - now)
@@ -84,20 +96,20 @@ func printStats(results []result, workTime int64) {
 	}
 	sort.Sort(times)
 
-	fmt.Printf(`Statistics for request to %s
-
+	fmt.Printf(`
+Total requests performed:       %d
+Total failures:                 %d
 Time taken for tests:           %.3f ms
 Average request takes:          %.3f ms
 Median request time:            %.3f ms
 Average time between responses: %.3f ms
-Total failures:                 %d
 `,
-		flag.Arg(0),
+		*reqs,
+		*reqs - len(times),
 		ms(workTime),
 		ms(total / int64(len(times))),
 		ms(times[len(times) / 2]),
-		ms(workTime / int64(*reqs)),
-		*reqs - len(times))
+		ms(workTime / int64(*reqs)))
 }
 
 func ms(x int64) (float64) {

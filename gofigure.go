@@ -15,6 +15,7 @@ import (
 var reqs *int = flag.Int("n", 1, "number of requests to make")
 var concurrency *int = flag.Int("c", 1, "concurrency")
 
+
 type someError struct {
 	what string
 	str  string
@@ -36,6 +37,11 @@ func (p Int64Array) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func main() {
 	flag.Parse()
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTS] URL\n\n", os.Args[0])
+		fmt.Fprint(os.Stderr, "Options: \n")
+		flag.PrintDefaults()
+	}
 
 	if len(flag.Args()) == 0 {
 		flag.Usage()

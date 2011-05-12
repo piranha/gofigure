@@ -1,7 +1,7 @@
 package main
 
 import (
-	"flag"
+	goopt "github.com/droundy/goopt"
 	"fmt"
 	"http"
 	"time"
@@ -12,9 +12,14 @@ import (
 	"sort"
 	)
 
-var reqs *int = flag.Int("n", 1, "number of requests to make")
-var concurrency *int = flag.Int("c", 1, "concurrency")
+var Author = "Alexander Solovyov"
+var Version = "0.1"
+var Summary = "gofigure [OPTS] URL\n"
 
+var reqs = goopt.Int([]string{"-n", "--requests"}, 1,
+	"number of requests to make")
+var concurrency = goopt.Int([]string{"-c", "--concurrency"}, 1,
+	"concurrency level")
 
 type someError struct {
 	what string
@@ -36,25 +41,23 @@ func (p Int64Array) Less(i, j int) bool { return p[i] < p[j] }
 func (p Int64Array) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func main() {
-	flag.Parse()
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [OPTS] URL\n\n", os.Args[0])
-		fmt.Fprint(os.Stderr, "Options: \n")
-		flag.PrintDefaults()
-	}
+	goopt.Author = Author
+	goopt.Version = Version
+	goopt.Summary = Summary
+	goopt.Parse(nil)
 
-	if len(flag.Args()) == 0 {
-		flag.Usage()
+	if len(goopt.Args) == 0 {
+		println(goopt.Usage())
 		return
 	}
 
-	url, err := getURL(flag.Arg(0))
+	url, err := getURL(goopt.Args[0])
 	if err != nil {
 		fmt.Printf("url is invalid: %s", err)
 		return
 	}
 
-	fmt.Printf("Statistics for requests to %s\n", flag.Arg(0))
+	fmt.Printf("Statistics for requests to %s\n", goopt.Args[0])
 
 	ch := make(chan result, *reqs)
 	results := make([]result, *reqs)

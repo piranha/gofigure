@@ -51,6 +51,11 @@ func main() {
 		return
 	}
 
+	if *concurrency > *reqs {
+		fmt.Printf("You can't have concurrency higher than number of requests\n")
+		return
+	}
+
 	url, err := getURL(goopt.Args[0])
 	if err != nil {
 		fmt.Printf("url is invalid: %s\n", err)

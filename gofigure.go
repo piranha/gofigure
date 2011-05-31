@@ -105,6 +105,15 @@ func printStats(results []result, workTime int64) {
 	}
 	sort.Sort(times)
 
+	average, median := int64(0), int64(0)
+	if len(times) > 0 {
+		average = total / int64(len(times))
+		median = times[len(times) / 2]
+	} else {
+		average = 0
+		median = 0
+	}
+
 	fmt.Printf(`
 Total requests performed:       %d
 Total failures:                 %d
@@ -116,8 +125,8 @@ Average time between responses: %.3f ms
 		*reqs,
 		*reqs - len(times),
 		ms(workTime),
-		ms(total / int64(len(times))),
-		ms(times[len(times) / 2]),
+		ms(average),
+		ms(median),
 		ms(workTime / int64(*reqs)))
 }
 
@@ -152,7 +161,7 @@ func send(url *http.URL, out chan result) {
 	rerr := func (err os.Error) result { return result{0, err} }
 
 	now := time.Nanoseconds()
-	conn, err := net.Dial("tcp", "", req.URL.Host)
+	conn, err := net.Dial("tcp", req.URL.Host)
 	if err != nil {
 		out <- rerr(err)
 		return

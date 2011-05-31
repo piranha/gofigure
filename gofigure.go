@@ -27,7 +27,7 @@ type someError struct {
 }
 
 func (e *someError) String() string {
-	return fmt.Sprintf("%s %q", e.what, e.str)
+	return fmt.Sprintf(e.what, e.str)
 }
 
 type result struct {
@@ -53,7 +53,7 @@ func main() {
 
 	url, err := getURL(goopt.Args[0])
 	if err != nil {
-		fmt.Printf("url is invalid: %s", err)
+		fmt.Printf("url is invalid: %s\n", err)
 		return
 	}
 
@@ -144,7 +144,7 @@ func getURL(url string) (*http.URL, os.Error) {
 		return nil, err
 	}
 
-	if URL.Scheme != "http" {
+	if URL.Scheme != "http" && URL.Scheme != "https" {
 		return nil, &someError{"unsupported protocol scheme: %s", URL.Scheme}
 	}
 

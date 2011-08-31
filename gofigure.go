@@ -14,13 +14,15 @@ import (
 	)
 
 var Author = "Alexander Solovyov"
-var Version = "0.1"
+var Version = "0.2"
 var Summary = "gofigure [OPTS] URL\n"
 
 var reqs = goopt.Int([]string{"-n", "--requests"}, 1,
 	"number of requests to make")
 var concurrency = goopt.Int([]string{"-c", "--concurrency"}, 1,
 	"concurrency level")
+var timeout = goopt.Int([]string{"-t", "--timeout"}, 1000,
+	"timeout of each request in milliseconds")
 
 type someError struct {
 	what string
@@ -167,6 +169,11 @@ func sender(url *url.URL, queue chan int, out chan result) {
 	}
 }
 
+type respErr struct {
+	resp *http.Response
+	err os.Error
+}
+
 func send(url *url.URL) result {
 	var req http.Request
 	req.URL = url
@@ -183,11 +190,23 @@ func send(url *url.URL) result {
 		return result{0, err}
 	}
 
-	reader := bufio.NewReader(conn)
-	response, err := http.ReadResponse(reader, &req)
-	res := result{time.Nanoseconds() - now, err}
+	ch := make(chan respErr, 1)
+	go func() {
+		reader := bufio.NewReader(conn)
+		response, err := http.ReadResponse(reader, &req)
+		ch <- respErr{response, err}
+	}()
 
-	conn.Close()
-	response.Body.Close()
+	var res result
+
+	select {
+	case <- time.After(int64(*timeout * 1e6)):
+		res = result{time.Nanoseconds() - now, os.NewError("Timeout!")}
+	case rerr := <- ch:
+		res = result{time.Nanoseconds() - now, rerr.err}
+		conn.Close()
+		rerr.resp.Body.Close()
+	}
+
 	return res
 }

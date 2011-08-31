@@ -87,13 +87,13 @@ func start(url *url.URL, requests int, concurrency int) ([]result, int64) {
 	for i := 0; i < requests; i++ {
 		results[i] = <- out
 
-		if i > 0 && i % 10 == 0 {
+		if i > 0 && i % 100 == 0 {
 			fmt.Printf(fmtCompleted, i, requests)
 		}
 	}
 
 	// erase 'Completed ...' line
-	fmt.Printf("\r%*s", len(fmtCompleted), " ")
+	fmt.Printf("\r%*s", len(fmtCompleted) + 10, " ")
 	return results, time.Nanoseconds() - now
 }
 

@@ -64,39 +64,37 @@ func main() {
 	}
 
 	fmt.Printf("Statistics for requests to %s\n", goopt.Args[0])
+	results, total := start(url, *reqs, *concurrency)
+	printStats(results, total)
+}
 
-	ch := make(chan result, *concurrency)
-	results := make([]result, *reqs)
-	running, started, completed := 0, 0, 0
-	hadProgress := false
+func start(url *url.URL, requests int, concurrency int) ([]result, int64) {
+	results := make([]result, requests)
+	queue := make(chan int, requests)
+	out := make(chan result, concurrency)
+	const fmtCompleted = "\rCompleted %d from %d requests"
+
+	for i := 0; i < requests; i++ {
+		queue <- i
+	}
 
 	now := time.Nanoseconds()
-	for {
-		if running < *concurrency && started < *reqs {
-			go send(url, ch)
-			running++
-			started++
-		} else if completed < *reqs {
-			results[completed] = <- ch
-			completed++
-			running--
 
-			if completed > 0 && completed % 100 == 0 {
-				fmt.Printf("\rCompleted %d from %d requests", completed, *reqs)
-				hadProgress = true
-			}
-		}
+	for i := 0; i < concurrency; i++ {
+		go sender(url, queue, out)
+	}
 
-		if started == completed && completed >= *reqs {
-			break
+	for i := 0; i < requests; i++ {
+		results[i] = <- out
+
+		if i > 0 && i % 10 == 0 {
+			fmt.Printf(fmtCompleted, i, requests)
 		}
 	}
 
-	if hadProgress {
-		fmt.Print("\r                                  ")
-	}
-
-	printStats(results, time.Nanoseconds() - now)
+	// erase 'Completed ...' line
+	fmt.Printf("\r%*s", len(fmtCompleted), " ")
+	return results, time.Nanoseconds() - now
 }
 
 func printStats(results []result, workTime int64) {
@@ -163,29 +161,33 @@ func getURL(rawurl string) (*url.URL, os.Error) {
 	return URL, nil
 }
 
-func send(url *url.URL, out chan result) {
+func sender(url *url.URL, queue chan int, out chan result) {
+	for _ = range queue {
+		out <- send(url)
+	}
+}
+
+func send(url *url.URL) result {
 	var req http.Request
 	req.URL = url
-	rerr := func (err os.Error) result { return result{0, err} }
 
 	now := time.Nanoseconds()
 	conn, err := net.Dial("tcp", req.URL.Host)
 	if err != nil {
-		out <- rerr(err)
-		return
+		return result{0, err}
 	}
 
 	err = req.Write(conn)
 	if err != nil {
 		conn.Close()
-		out <- rerr(err)
-		return
+		return result{0, err}
 	}
 
 	reader := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(reader, &req)
-	out <- result{time.Nanoseconds() - now, err}
+	response, err := http.ReadResponse(reader, &req)
+	res := result{time.Nanoseconds() - now, err}
 
 	conn.Close()
-	resp.Body.Close()
+	response.Body.Close()
+	return res
 }

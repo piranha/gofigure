@@ -10,6 +10,7 @@ import (
 	"net"
 	"bufio"
 	"sort"
+	"url"
 	)
 
 var Author = "Alexander Solovyov"
@@ -126,13 +127,15 @@ Time taken for tests:           %.3f ms
 Average request takes:          %.3f ms
 Median request time:            %.3f ms
 Average time between responses: %.3f ms
+Average requests per second:    %.3f
 `,
 		*reqs,
 		*reqs - len(times),
 		ms(workTime),
 		ms(average),
 		ms(median),
-		ms(workTime / int64(*reqs)))
+		ms(workTime / int64(*reqs)),
+		(float64(*reqs) / (ms(workTime) / 1000)))
 }
 
 func ms(x int64) (float64) {
@@ -143,8 +146,8 @@ func hasPort(s string) bool {
 	return strings.LastIndex(s, ":") > strings.LastIndex(s, "]")
 }
 
-func getURL(url string) (*http.URL, os.Error) {
-	URL, err := http.ParseURL(url)
+func getURL(rawurl string) (*url.URL, os.Error) {
+	URL, err := url.Parse(rawurl)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +163,7 @@ func getURL(url string) (*http.URL, os.Error) {
 	return URL, nil
 }
 
-func send(url *http.URL, out chan result) {
+func send(url *url.URL, out chan result) {
 	var req http.Request
 	req.URL = url
 	rerr := func (err os.Error) result { return result{0, err} }
@@ -180,7 +183,7 @@ func send(url *http.URL, out chan result) {
 	}
 
 	reader := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(reader, req.Method)
+	resp, err := http.ReadResponse(reader, &req)
 	out <- result{time.Nanoseconds() - now, err}
 
 	conn.Close()

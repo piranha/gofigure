@@ -65,29 +65,29 @@ func main() {
 
 	fmt.Printf("Statistics for requests to %s\n", goopt.Args[0])
 
-	ch := make(chan result, *reqs)
+	ch := make(chan result, *concurrency)
 	results := make([]result, *reqs)
-	running, i, j := 0, 0, 0
+	running, started, completed := 0, 0, 0
 	hadProgress := false
 
 	now := time.Nanoseconds()
 	for {
-		if running < *concurrency && i < *reqs {
+		if running < *concurrency && started < *reqs {
 			go send(url, ch)
 			running++
-			i++
-		} else if j < *reqs {
-			results[j] = <- ch
-			j++
+			started++
+		} else if completed < *reqs {
+			results[completed] = <- ch
+			completed++
 			running--
 
-			if j > 0 && j % 100 == 0 {
-				fmt.Printf("\rCompleted %d from %d requests", j, *reqs)
+			if completed > 0 && completed % 100 == 0 {
+				fmt.Printf("\rCompleted %d from %d requests", completed, *reqs)
 				hadProgress = true
 			}
 		}
 
-		if i == j && j >= *reqs {
+		if started == completed && completed >= *reqs {
 			break
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"sort"
 	"url"
+	"runtime"
 	)
 
 var Author = "Alexander Solovyov"
@@ -23,6 +24,8 @@ var concurrency = goopt.Int([]string{"-c", "--concurrency"}, 1,
 	"concurrency level")
 var timeout = goopt.Int([]string{"-t", "--timeout"}, 1000,
 	"timeout of each request in milliseconds")
+var cpus = goopt.Int([]string{"-p", "--cpus"}, 0,
+	"how many processes to run (0 - default)")
 
 type someError struct {
 	what string
@@ -64,6 +67,8 @@ func main() {
 		fmt.Printf("url is invalid: %s\n", err)
 		return
 	}
+
+	runtime.GOMAXPROCS(*cpus)
 
 	fmt.Printf("Statistics for requests to %s\n", goopt.Args[0])
 	results, total := start(url, *reqs, *concurrency)

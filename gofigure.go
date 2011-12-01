@@ -1,18 +1,18 @@
 package main
 
 import (
-	goopt "github.com/droundy/goopt"
-	"fmt"
-	"http"
-	"time"
-	"strings"
-	"os"
-	"net"
 	"bufio"
-	"sort"
-	"url"
+	"errors"
+	"fmt"
+	goopt "github.com/droundy/goopt"
+	"net"
+	"net/http"
+	"net/url"
 	"runtime"
-	)
+	"sort"
+	"strings"
+	"time"
+)
 
 var Author = "Alexander Solovyov"
 var Version = "0.2"
@@ -32,16 +32,17 @@ type someError struct {
 	str  string
 }
 
-func (e *someError) String() string {
+func (e *someError) Error() string {
 	return fmt.Sprintf(e.what, e.str)
 }
 
 type result struct {
-	time int64
-	err os.Error
+	time time.Duration
+	err  error
 }
 
 type Int64Array []int64
+
 func (p Int64Array) Len() int           { return len(p) }
 func (p Int64Array) Less(i, j int) bool { return p[i] < p[j] }
 func (p Int64Array) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
@@ -75,7 +76,7 @@ func main() {
 	printStats(results, total)
 }
 
-func start(url *url.URL, requests int, concurrency int) ([]result, int64) {
+func start(url *url.URL, requests int, concurrency int) ([]result, time.Duration) {
 	results := make([]result, requests)
 	queue := make(chan int, requests)
 	out := make(chan result, concurrency)
@@ -85,33 +86,33 @@ func start(url *url.URL, requests int, concurrency int) ([]result, int64) {
 		queue <- i
 	}
 
-	now := time.Nanoseconds()
+	now := time.Now()
 
 	for i := 0; i < concurrency; i++ {
 		go sender(url, queue, out)
 	}
 
 	for i := 0; i < requests; i++ {
-		results[i] = <- out
+		results[i] = <-out
 
-		if i > 0 && i % 100 == 0 {
+		if i > 0 && i%100 == 0 {
 			fmt.Printf(fmtCompleted, i, requests)
 		}
 	}
 
 	// erase 'Completed ...' line
-	fmt.Printf("\r%*s", len(fmtCompleted) + 10, " ")
-	return results, time.Nanoseconds() - now
+	fmt.Printf("\r%*s", len(fmtCompleted)+10, " ")
+	return results, time.Now().Sub(now)
 }
 
-func printStats(results []result, workTime int64) {
+func printStats(results []result, workTime time.Duration) {
 	times := make(Int64Array, 0)
 	total := int64(0)
 
-	for _, r := range(results) {
+	for _, r := range results {
 		if r.err == nil {
-			times = append(times, r.time)
-			total += r.time
+			times = append(times, r.time.Nanoseconds())
+			total += r.time.Nanoseconds()
 		}
 	}
 	sort.Sort(times)
@@ -119,7 +120,7 @@ func printStats(results []result, workTime int64) {
 	average, median := int64(0), int64(0)
 	if len(times) > 0 {
 		average = total / int64(len(times))
-		median = times[len(times) / 2]
+		median = times[len(times)/2]
 	} else {
 		average = 0
 		median = 0
@@ -135,23 +136,23 @@ Average time between responses: %.3f ms
 Average requests per second:    %.3f
 `,
 		*reqs,
-		*reqs - len(times),
-		ms(workTime),
+		*reqs-len(times),
+		ms(workTime.Nanoseconds()),
 		ms(average),
 		ms(median),
-		ms(workTime / int64(*reqs)),
-		(float64(*reqs) / (ms(workTime) / 1000)))
+		ms(workTime.Nanoseconds() / int64(*reqs)),
+		(float64(*reqs) / (ms(workTime.Nanoseconds()) / 1000)))
 }
 
-func ms(x int64) (float64) {
-	return float64(x) / 1000000
+func ms(x int64) float64 {
+    return float64(x) / 1000000
 }
 
 func hasPort(s string) bool {
 	return strings.LastIndex(s, ":") > strings.LastIndex(s, "]")
 }
 
-func getURL(rawurl string) (*url.URL, os.Error) {
+func getURL(rawurl string) (*url.URL, error) {
 	URL, err := url.Parse(rawurl)
 	if err != nil {
 		return nil, err
@@ -176,14 +177,14 @@ func sender(url *url.URL, queue chan int, out chan result) {
 
 type respErr struct {
 	resp *http.Response
-	err os.Error
+	err  error
 }
 
 func send(url *url.URL) result {
 	var req http.Request
 	req.URL = url
 
-	now := time.Nanoseconds()
+	now := time.Now()
 	conn, err := net.Dial("tcp", req.URL.Host)
 	if err != nil {
 		return result{0, err}
@@ -205,10 +206,10 @@ func send(url *url.URL) result {
 	var res result
 
 	select {
-	case <- time.After(int64(*timeout * 1e6)):
-		res = result{time.Nanoseconds() - now, os.NewError("Timeout!")}
-	case rerr := <- ch:
-		res = result{time.Nanoseconds() - now, rerr.err}
+	case <-time.After(time.Duration(*timeout * 1e6)):
+		res = result{time.Now().Sub(now), errors.New("Timeout!")}
+	case rerr := <-ch:
+		res = result{time.Now().Sub(now), rerr.err}
 		conn.Close()
 		rerr.resp.Body.Close()
 	}

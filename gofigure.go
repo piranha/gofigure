@@ -41,11 +41,17 @@ type result struct {
 	err  error
 }
 
-type Int64Array []int64
+type DurationArray []time.Duration
 
-func (p Int64Array) Len() int           { return len(p) }
-func (p Int64Array) Less(i, j int) bool { return p[i] < p[j] }
-func (p Int64Array) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p DurationArray) Len() int {
+	return len(p)
+}
+func (p DurationArray) Less(i, j int) bool {
+	return p[i].Nanoseconds() < p[j].Nanoseconds()
+}
+func (p DurationArray) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
 
 func main() {
 	goopt.Author = Author
@@ -106,46 +112,40 @@ func start(url *url.URL, requests int, concurrency int) ([]result, time.Duration
 }
 
 func printStats(results []result, workTime time.Duration) {
-	times := make(Int64Array, 0)
-	total := int64(0)
+	times := make(DurationArray, 0)
+	total := time.Duration(0)
 
 	for _, r := range results {
 		if r.err == nil {
-			times = append(times, r.time.Nanoseconds())
-			total += r.time.Nanoseconds()
+			times = append(times, r.time)
+			total += r.time
 		}
 	}
 	sort.Sort(times)
 
-	average, median := int64(0), int64(0)
+	average := time.Duration(0)
+	median := time.Duration(0)
 	if len(times) > 0 {
-		average = total / int64(len(times))
-		median = times[len(times)/2]
-	} else {
-		average = 0
-		median = 0
+		average = time.Duration(total.Nanoseconds() / int64(len(times)))
+		median = times[len(times) / 2]
 	}
 
 	fmt.Printf(`
 Total requests performed:       %d
 Total failures:                 %d
-Time taken for tests:           %.3f ms
-Average request takes:          %.3f ms
-Median request time:            %.3f ms
-Average time between responses: %.3f ms
+Time taken for tests:           %s
+Average request takes:          %s
+Median request time:            %s
+Average time between responses: %s
 Average requests per second:    %.3f
 `,
 		*reqs,
 		*reqs-len(times),
-		ms(workTime.Nanoseconds()),
-		ms(average),
-		ms(median),
-		ms(workTime.Nanoseconds() / int64(*reqs)),
-		(float64(*reqs) / (ms(workTime.Nanoseconds()) / 1000)))
-}
-
-func ms(x int64) float64 {
-    return float64(x) / 1000000
+		workTime,
+		average,
+		median,
+		time.Duration(workTime.Nanoseconds() / int64(*reqs)),
+		(float64(*reqs) / workTime.Seconds()))
 }
 
 func hasPort(s string) bool {

@@ -199,10 +199,10 @@ func send(url *url.URL, addr string) result {
 	if err != nil {
 		return result{0, err}
 	}
+	defer conn.Close()
 
 	err = req.Write(conn)
 	if err != nil {
-		conn.Close()
 		return result{0, err}
 	}
 
@@ -220,7 +220,6 @@ func send(url *url.URL, addr string) result {
 		res = result{time.Now().Sub(now), errors.New("Timeout!")}
 	case rerr := <-ch:
 		res = result{time.Now().Sub(now), rerr.err}
-		conn.Close()
 		rerr.resp.Body.Close()
 	}
 

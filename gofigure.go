@@ -69,7 +69,7 @@ func main() {
 		return
 	}
 
-	url, err := getURL(goopt.Args[0])
+	url, ip, err := getURL(goopt.Args[0])
 	if err != nil {
 		fmt.Printf("url is invalid: %s\n", err)
 		return
@@ -78,11 +78,11 @@ func main() {
 	runtime.GOMAXPROCS(*cpus)
 
 	fmt.Printf("Statistics for requests to %s\n", goopt.Args[0])
-	results, total := start(url, *reqs, *concurrency)
+	results, total := start(url, ip, *reqs, *concurrency)
 	printStats(results, total)
 }
 
-func start(url *url.URL, requests int, concurrency int) ([]result, time.Duration) {
+func start(url *url.URL, addr string, requests int, concurrency int) ([]result, time.Duration) {
 	results := make([]result, requests)
 	queue := make(chan int, requests)
 	out := make(chan result, concurrency)
@@ -95,7 +95,7 @@ func start(url *url.URL, requests int, concurrency int) ([]result, time.Duration
 	now := time.Now()
 
 	for i := 0; i < concurrency; i++ {
-		go sender(url, queue, out)
+		go sender(url, addr, queue, out)
 	}
 
 	for i := 0; i < requests; i++ {
@@ -152,26 +152,36 @@ func hasPort(s string) bool {
 	return strings.LastIndex(s, ":") > strings.LastIndex(s, "]")
 }
 
-func getURL(rawurl string) (*url.URL, error) {
+func getURL(rawurl string) (*url.URL, string, error) {
 	URL, err := url.Parse(rawurl)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if URL.Scheme != "http" && URL.Scheme != "https" {
-		return nil, &someError{"unsupported protocol scheme: %s", URL.Scheme}
+		return nil, "", &someError{"unsupported protocol scheme: %s", URL.Scheme}
 	}
 
-	if !hasPort(URL.Host) {
-		URL.Host += ":http"
+	bits := strings.Split(URL.Host, ":")
+	host := bits[0]
+	var port string
+	if len(bits) > 1 {
+		port = bits[1]
+	} else {
+		port = "80"
 	}
 
-	return URL, nil
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return URL, ip.String() + ":" + port, nil
 }
 
-func sender(url *url.URL, queue chan int, out chan result) {
+func sender(url *url.URL, addr string, queue chan int, out chan result) {
 	for _ = range queue {
-		out <- send(url)
+		out <- send(url, addr)
 	}
 }
 
@@ -180,12 +190,12 @@ type respErr struct {
 	err  error
 }
 
-func send(url *url.URL) result {
+func send(url *url.URL, addr string) result {
 	var req http.Request
 	req.URL = url
 
 	now := time.Now()
-	conn, err := net.Dial("tcp", req.URL.Host)
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return result{0, err}
 	}

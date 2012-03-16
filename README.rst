@@ -3,7 +3,6 @@
 gofigure
 ========
 
-Simple ab-like tool. Compile it (with ``make``) and run to get information about
-command line arguments.
+Simple ab-like tool. Run it to get information about command line arguments.
 
-To install, type: ``go get github.com/piranha/gofigure.git``
+To install, type: ``go get github.com/piranha/gofigure``
